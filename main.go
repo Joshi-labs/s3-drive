@@ -1,0 +1,341 @@
+package main
+
+import (
+	"context"
+	"embed"
+	"encoding/json"
+	"fmt"
+	"io"
+	"io/fs"
+	"log"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"github.com/joho/godotenv"
+	"golang.org/x/crypto/bcrypt"
+
+	// IMPORT YOUR LOCAL PACKAGES
+	"s3-drive/internal/database"
+	"s3-drive/internal/storage"
+	"s3-drive/internal/middleware"
+)
+
+//go:embed frontend-test1
+var frontend embed.FS
+
+var jwtSecret = []byte("REPLACE_THIS_WITH_RANDOM_STRING") // Use ENV in prod
+
+func main() {
+	godotenv.Load()
+
+	// 1. Initialize Systems
+	database.Connect() // Connects to SQLite or Postgres
+	storage.Connect()  // Connects to S3
+
+	go database.StartCleanupTask()
+	go middleware.StartCleanup()
+
+	// 2. Create Default Admin (if none exists)
+	ensureAdminExists()
+
+	// 3. Setup Routes
+	mux := http.NewServeMux()
+
+	// --- PUBLIC AUTH ---
+	mux.HandleFunc("/api/login", handleLogin)             // For Admin
+	mux.HandleFunc("/api/guest-login", middleware.RateLimit(handleGuestLogin)) // For Guests
+
+	// --- PROTECTED ROUTES (Middleware Required) ---
+    mux.HandleFunc("/api/upload-init", middleware.RateLimit(authMiddleware(handleUploadInit)))
+	mux.HandleFunc("/api/upload-finalize", middleware.RateLimit(authMiddleware(handleUploadFinalize)))
+	mux.HandleFunc("/api/files", middleware.RateLimit(authMiddleware(handleListFiles)))
+	mux.HandleFunc("/api/download", middleware.RateLimit(authMiddleware(handleDownload)))
+	mux.HandleFunc("/api/folders", middleware.RateLimit(authMiddleware(handleCreateFolder)))
+	mux.HandleFunc("/api/delete", middleware.RateLimit(authMiddleware(handleDelete)))
+
+	// --- STATIC FILES ---
+	distFS, _ := fs.Sub(frontend, "frontend-test1")
+	//fileServer := http.FileServer(http.FS(distFS))
+
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			http.NotFound(w, r); return
+		}
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		if path == "" { path = "index.html" }
+		
+		f, err := distFS.Open(path)
+		if err != nil { f, _ = distFS.Open("index.html") }
+		if f != nil { defer f.Close(); http.ServeContent(w, r, "index.html", time.Time{}, f.(io.ReadSeeker)) }
+	})
+
+	log.Println("✅ Server running on http://localhost:8080")
+	http.ListenAndServe(":8080", mux)
+}
+
+// --- HANDLERS ---
+func handleDelete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "DELETE" {
+		http.Error(w, "DELETE only", 405)
+		return
+	}
+
+	userID := r.Context().Value("userID").(uint)
+	role := r.Context().Value("role").(string)
+
+	// Get ID from Query
+	rawID := r.URL.Query().Get("id")
+	var id uint
+	fmt.Sscanf(rawID, "%d", &id)
+
+	// 1. Calculate what needs to be deleted
+	candidates, err := database.GetDeletionCandidates(id, userID, role)
+	if err != nil {
+		http.Error(w, err.Error(), 403)
+		return
+	}
+
+	// 2. Delete from S3 (Batch)
+	if len(candidates.S3Keys) > 0 {
+		// Ignore S3 errors (orphaned files are better than DB inconsistency)
+		_ = storage.DeleteMultiple(candidates.S3Keys)
+	}
+
+	// 3. Delete from DB
+	database.BatchDelete(candidates.DBIds)
+
+	// 4. FIX: Invalidate Cache!
+	// This forces the file list to refresh on the next request
+	database.InvalidateCache(candidates.RootParentID, userID)
+
+	json.NewEncoder(w).Encode(map[string]string{
+		"status": "deleted",
+		"count":  fmt.Sprintf("%d items removed", len(candidates.DBIds)),
+	})
+}
+func handleCreateFolder(w http.ResponseWriter, r *http.Request) {
+    if r.Method != "POST" { http.Error(w, "POST only", 405); return }
+
+    userID := r.Context().Value("userID").(uint)
+    role := r.Context().Value("role").(string) // <--- GET ROLE
+    
+    var req struct {
+        Name     string `json:"name"`
+        ParentID *uint  `json:"parentId"`
+    }
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, "Invalid JSON", 400); return
+    }
+
+    // Determine Visibility
+    // Admin folders = Private (unless specified otherwise, but default private)
+    // Guest folders = Public (Always, so they can see them)
+    isPublic := (role == "guest")
+
+    // Pass isPublic to the DB function
+    folder, err := database.CreateFolder(req.Name, req.ParentID, userID, isPublic)
+    if err != nil {
+        http.Error(w, err.Error(), 400); return
+    }
+
+    json.NewEncoder(w).Encode(folder)
+}
+
+func handleLogin(w http.ResponseWriter, r *http.Request) {
+	var req struct { Username, Password string }
+	json.NewDecoder(r.Body).Decode(&req)
+
+	var user database.User
+	if err := database.DB.Where("username = ?", req.Username).First(&user).Error; err != nil {
+		http.Error(w, "Invalid credentials", 401); return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+		http.Error(w, "Invalid credentials", 401); return
+	}
+
+	sendToken(w, user.ID, "admin")
+}
+
+func handleGuestLogin(w http.ResponseWriter, r *http.Request) {
+	// Simple Guest Login. In future, check IP Limits here.
+	// We use ID=0 to signify Guest
+	sendToken(w, 0, "guest")
+}
+
+func handleUploadInit(w http.ResponseWriter, r *http.Request) {
+	// Extract info from context (set by middleware)
+	userID := r.Context().Value("userID").(uint)
+	role := r.Context().Value("role").(string)
+
+	var req struct { Filename string; Size int64; ParentID *uint `json:"parentId"` }
+	json.NewDecoder(r.Body).Decode(&req)
+
+	// 🔒 ENFORCE LIMITS
+	const GB = 1024 * 1024 * 1024
+	var limit int64
+	if role == "guest" {
+		limit = 1 * GB // 1GB for Guests
+		if req.Size > limit {
+			http.Error(w, "Guest limit exceeded (Max 1GB)", 403); return
+		}
+	} else {
+		limit = 5 * GB // 5GB for Admins (S3 single PUT limit)
+	}
+
+	// Generate UUID Key
+	uniqueKey := fmt.Sprintf("uploads/%s", uuid.New().String())
+
+	// Save to DB (Pending State)
+	isPublic := (role == "guest") // Guests uploads are public by default? Or private? 
+	// Let's say Guest uploads are PUBLIC so they can share them.
+	
+	var userPtr *uint
+	if userID != 0 { userPtr = &userID }
+
+	newFile := database.FileMetadata{
+		Name: req.Filename, S3Key: uniqueKey, Size: req.Size, 
+		UserID: userPtr, IsPublic: isPublic,
+		ParentID: req.ParentID,
+		Status: "pending",
+	}
+	database.DB.Create(&newFile)
+	database.InvalidateCache(req.ParentID, userID)
+
+	// Generate S3 URL with HARD LIMIT
+	url, err := storage.GeneratePutURL(uniqueKey, req.Size) // MUST match exactly
+	if err != nil {
+		http.Error(w, err.Error(), 500); return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"uploadUrl": url, "fileId": newFile.ID,
+	})
+}
+
+func handleUploadFinalize(w http.ResponseWriter, r *http.Request) {
+    var req struct { FileID uint `json:"fileId"` }
+    json.NewDecoder(r.Body).Decode(&req)
+
+    // 1. Get UserID to ensure they own the file (security check)
+    userID := r.Context().Value("userID").(uint)
+    role := r.Context().Value("role").(string)
+
+    //var file database.FileMetadata
+    // Admin can finalize anything? Or just their own? Let's stay safe:
+    // User can only finalize their own file.
+    query := database.DB.Model(&database.FileMetadata{}).Where("id = ?", req.FileID)
+    
+    if role != "admin" {
+         // If guest (ID 0) or normal user, verify ownership/public logic
+         if userID == 0 {
+             // Guest: must match public files that are pending? 
+             // Ideally we need a session ID for guests to fully secure this, 
+             // but for now, checking ID exists is okay for Test 2.
+         } else {
+             query = query.Where("user_id = ?", userID)
+         }
+    }
+
+    // 2. Flip the switch
+    result := query.Update("status", "completed")
+    
+    if result.Error != nil || result.RowsAffected == 0 {
+        http.Error(w, "File not found or access denied", 404)
+        return
+    }
+
+    json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+func handleListFiles(w http.ResponseWriter, r *http.Request) {
+    userID := r.Context().Value("userID").(uint)
+    role := r.Context().Value("role").(string)
+    
+    // Parse Parent ID from Query (e.g., ?parentId=5)
+    // If empty or "null", it means Root.
+    rawParentID := r.URL.Query().Get("parentId")
+    
+    var parentID *uint
+    if rawParentID != "" && rawParentID != "null" {
+        // Convert string to uint... (simplified for brevity)
+        var pID uint
+        fmt.Sscanf(rawParentID, "%d", &pID)
+        parentID = &pID
+    }
+
+    files, err := database.GetFolderContent(parentID, userID, role)
+    if err != nil {
+        http.Error(w, err.Error(), 500); return
+    }
+    
+    json.NewEncoder(w).Encode(files)
+}
+
+func handleDownload(w http.ResponseWriter, r *http.Request) {
+	fileID := r.URL.Query().Get("id")
+	var file database.FileMetadata
+	if err := database.DB.First(&file, fileID).Error; err != nil {
+		http.Error(w, "Not found", 404); return
+	}
+
+	// Generate URL
+	url, err := storage.GenerateGetURL(file.S3Key, file.Name)
+	if err != nil {
+		http.Error(w, err.Error(), 500); return
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{"downloadUrl": url})
+}
+
+// --- HELPERS ---
+
+func sendToken(w http.ResponseWriter, id uint, role string) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub": id,
+		"role": role,
+		"exp": time.Now().Add(24 * time.Hour).Unix(),
+	})
+	tokenString, _ := token.SignedString(jwtSecret)
+	json.NewEncoder(w).Encode(map[string]string{"token": tokenString})
+}
+
+func ensureAdminExists() {
+	var count int64
+	database.DB.Model(&database.User{}).Count(&count)
+	if count == 0 {
+		hash, _ := bcrypt.GenerateFromPassword([]byte("admin123"), 14)
+		database.DB.Create(&database.User{Username: "admin", Password: string(hash)})
+		log.Println("⚠️ Created default user: admin / admin123")
+	}
+}
+
+// --- MIDDLEWARE ---
+func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			http.Error(w, "Missing Auth Token", 401); return
+		}
+		
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
+			return jwtSecret, nil
+		})
+
+		if err != nil || !token.Valid {
+			http.Error(w, "Invalid Token", 401); return
+		}
+
+		claims := token.Claims.(jwt.MapClaims)
+		userID := uint(claims["sub"].(float64))
+		role := claims["role"].(string)
+
+		ctx := context.WithValue(r.Context(), "userID", userID)
+		ctx = context.WithValue(ctx, "role", role)
+		next(w, r.WithContext(ctx))
+	}
+}
