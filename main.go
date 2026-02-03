@@ -23,7 +23,7 @@ import (
 	"s3-drive/internal/middleware"
 )
 
-//go:embed frontend-test1
+//go:embed frontend-test
 var frontend embed.FS
 
 var jwtSecret = []byte("REPLACE_THIS_WITH_RANDOM_STRING") // Use ENV in prod
@@ -57,7 +57,7 @@ func main() {
 	mux.HandleFunc("/api/delete", middleware.RateLimit(authMiddleware(handleDelete)))
 
 	// --- STATIC FILES ---
-	distFS, _ := fs.Sub(frontend, "frontend-test1")
+	distFS, _ := fs.Sub(frontend, "frontend-test")
 	//fileServer := http.FileServer(http.FS(distFS))
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
