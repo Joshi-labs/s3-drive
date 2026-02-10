@@ -52,7 +52,10 @@ func enableCORS(next http.Handler) http.Handler {
 }
 
 func main() {
-	godotenv.Load()
+	err := godotenv.Load()
+	if err != nil {
+		log.Println("Error loading .env file:", err)
+	}
 
 	// 1. Initialize Systems
 	database.Connect() // Connects to SQLite or Postgres
