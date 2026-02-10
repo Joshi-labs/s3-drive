@@ -16,7 +16,6 @@ jobs:
       packages: write
 
     env:
-      # We set this initially, but we will overwrite it with the lowercase version in the steps
       IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/s3-drive:latest
       NAMESPACE: apps-prod
 
@@ -24,8 +23,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # We MUST keep this step because 'ghcr.io/Joshi-labs' (Capital J) causes the build to fail.
-      # This step forces it to lowercase 'ghcr.io/joshi-labs' just like your working stats-app.
       - name: Lowercase Image Name
         run: |
           echo "IMAGE=${IMAGE_NAME,,}" >> $GITHUB_ENV
@@ -47,7 +44,6 @@ jobs:
           push: true
           tags: ${{ env.IMAGE }}
 
-      # --- YOUR WORKING KUBECTL SETUP (Reverted to your 'curl' method) ---
       - name: Install kubectl
         run: |
           KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt)
@@ -56,7 +52,6 @@ jobs:
           sudo mv kubectl /usr/local/bin/kubectl
           kubectl version --client
 
-      # --- YOUR WORKING CONFIG SETUP (Using unquoted EOF for variable expansion) ---
       - name: Configure kubeconfig
         run: |
           mkdir -p ~/.kube
