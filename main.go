@@ -23,8 +23,9 @@ import (
 	"s3-drive/internal/middleware"
 )
 
-//go:embed frontend-test
-var frontend embed.FS
+//go:embed frontend/dist/*
+//var frontend embed.FS
+var frontendContent embed.FS
 
 var jwtSecret = []byte("REPLACE_THIS_WITH_RANDOM_STRING") // Use ENV in prod
 
@@ -32,7 +33,7 @@ var jwtSecret = []byte("REPLACE_THIS_WITH_RANDOM_STRING") // Use ENV in prod
 func enableCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// 1. Allow your frontend origin
-		w.Header().Set("Access-Control-Allow-Origin", "*") // Update this if your frontend port changes
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		
 		// 2. Allow specific HTTP methods
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
@@ -89,22 +90,50 @@ func main() {
 	mux.HandleFunc("/api/restore", middleware.RateLimit(authMiddleware(handleRestore))) //
 
 	// --- STATIC FILES ---
-	distFS, _ := fs.Sub(frontend, "frontend-test")
+	//distFS, _ := fs.Sub(frontend, "frontend/dist")
 	//fileServer := http.FileServer(http.FS(distFS))
 
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api/") {
-			http.NotFound(w, r); return
-		}
-		path := strings.TrimPrefix(r.URL.Path, "/")
-		if path == "" { path = "index.html" }
-		
-		f, err := distFS.Open(path)
-		if err != nil { f, _ = distFS.Open("index.html") }
-		if f != nil { defer f.Close(); http.ServeContent(w, r, "index.html", time.Time{}, f.(io.ReadSeeker)) }
-	})
+	distFS, err := fs.Sub(frontendContent, "frontend/dist")
+    if err != nil {
+        log.Fatal("Failed to sub-tree frontendContent:", err)
+    }
 
-	log.Println("✅ Server running on http://localhost:8080")
+mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+        // Allow API routes to be handled by their own handlers
+        // (This check is a safety net, but usually mux handles this automatically)
+        if strings.HasPrefix(r.URL.Path, "/api/") {
+            http.NotFound(w, r)
+            return
+        }
+
+        // Clean the path to get the actual filename
+        path := strings.TrimPrefix(r.URL.Path, "/")
+        
+        // Try to open the file in the embedded dist folder
+        f, err := distFS.Open(path)
+        if err != nil {
+            // FILE NOT FOUND: This is likely a React route (e.g., /dashboard)
+            // Serve index.html and let React Router handle the URL
+            indexFile, err := distFS.Open("index.html")
+            if err != nil {
+                http.Error(w, "Index file not found", http.StatusNotFound)
+                return
+            }
+            defer indexFile.Close()
+            
+            // Critical: Use "index.html" as the name so MIME type is set to text/html
+            http.ServeContent(w, r, "index.html", time.Now(), indexFile.(io.ReadSeeker))
+            return
+        }
+        defer f.Close()
+
+        // FILE FOUND: Serve the actual file (main.js, logo.png, etc.)
+        // Get FileInfo to provide the correct modification time and detect MIME type
+        fi, _ := f.Stat()
+        http.ServeContent(w, r, path, fi.ModTime(), f.(io.ReadSeeker))
+    })
+
+	//log.Println("✅ Server running on http://localhost:8080")
 	http.ListenAndServe("0.0.0.0:8080", enableCORS(mux))
 }
 
