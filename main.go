@@ -28,6 +28,28 @@ var frontend embed.FS
 
 var jwtSecret = []byte("REPLACE_THIS_WITH_RANDOM_STRING") // Use ENV in prod
 
+
+func enableCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 1. Allow your frontend origin
+		w.Header().Set("Access-Control-Allow-Origin", "*") // Update this if your frontend port changes
+		
+		// 2. Allow specific HTTP methods
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		
+		// 3. Allow headers (Content-Type for JSON, Authorization for tokens)
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		// 4. Handle "Preflight" requests (Browser asks: "Can I send this?")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 	godotenv.Load()
 
@@ -56,6 +78,16 @@ func main() {
 	mux.HandleFunc("/api/folders", middleware.RateLimit(authMiddleware(handleCreateFolder)))
 	mux.HandleFunc("/api/delete", middleware.RateLimit(authMiddleware(handleDelete)))
 
+	mux.HandleFunc("/api/search", middleware.RateLimit(authMiddleware(handleSearch))) //searches within user's accessible files
+	mux.HandleFunc("/api/recents", middleware.RateLimit(authMiddleware(handleRecents))) // shows recently accessed files (by last modified or accessed timestamp)
+
+	mux.HandleFunc("/api/starred", middleware.RateLimit(authMiddleware(handleStarred))) // lists all starred files for the user
+	mux.HandleFunc("/api/star-toggle", middleware.RateLimit(authMiddleware(handleStarToggle))) // toggles star state for a file (star if unstarred, unstar if starred)
+
+	mux.HandleFunc("/api/trash", middleware.RateLimit(authMiddleware(handleTrashList))) // lists all files in the user's trash (soft-deleted items)
+	mux.HandleFunc("/api/soft-delete", middleware.RateLimit(authMiddleware(handleSoftDelete))) // moves a file to trash (soft delete, can be restored)
+	mux.HandleFunc("/api/restore", middleware.RateLimit(authMiddleware(handleRestore))) //
+
 	// --- STATIC FILES ---
 	distFS, _ := fs.Sub(frontend, "frontend-test")
 	//fileServer := http.FileServer(http.FS(distFS))
@@ -73,10 +105,92 @@ func main() {
 	})
 
 	log.Println("✅ Server running on http://localhost:8080")
-	http.ListenAndServe(":8080", mux)
+	http.ListenAndServe("0.0.0.0:8080", enableCORS(mux))
 }
 
 // --- HANDLERS ---
+
+// --- NEW FEATURE HANDLERS ---
+
+func handleSearch(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value("userID").(uint)
+	role := r.Context().Value("role").(string)
+	
+	query := r.URL.Query().Get("q")
+	page := 1 // Parse "page" from query if needed
+	
+	files, err := database.SearchFiles(query, page, userID, role)
+	if err != nil { http.Error(w, err.Error(), 500); return }
+	
+	json.NewEncoder(w).Encode(files)
+}
+
+func handleRecents(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value("userID").(uint)
+	role := r.Context().Value("role").(string)
+	
+	files, err := database.GetRecents(1, userID, role) // Page 1 default
+	if err != nil { http.Error(w, err.Error(), 500); return }
+	
+	json.NewEncoder(w).Encode(files)
+}
+
+func handleStarred(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value("userID").(uint)
+	role := r.Context().Value("role").(string)
+	
+	files, err := database.GetStarred(1, userID, role)
+	if err != nil { http.Error(w, err.Error(), 500); return }
+	
+	json.NewEncoder(w).Encode(files)
+}
+
+func handleStarToggle(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value("userID").(uint)
+	var req struct { ID uint `json:"id"` }
+	json.NewDecoder(r.Body).Decode(&req)
+
+	newState, err := database.ToggleStar(req.ID, userID)
+	if err != nil { http.Error(w, err.Error(), 400); return }
+
+	json.NewEncoder(w).Encode(map[string]bool{"is_starred": newState})
+}
+
+func handleTrashList(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value("userID").(uint)
+	files, err := database.GetTrash(1, userID)
+	if err != nil { http.Error(w, err.Error(), 500); return }
+	json.NewEncoder(w).Encode(files)
+}
+
+func handleSoftDelete(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value("userID").(uint)
+	var req struct { ID uint `json:"id"` }
+	json.NewDecoder(r.Body).Decode(&req)
+
+	// Note: You might want a recursive soft delete for folders here later
+	err := database.SoftDelete(req.ID, userID)
+	if err != nil { http.Error(w, err.Error(), 400); return }
+	
+	// Invalidate cache since item moved
+	database.InvalidateCache(nil, userID) // Lazy invalidation (root)
+
+	json.NewEncoder(w).Encode(map[string]string{"status": "trashed"})
+}
+
+func handleRestore(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value("userID").(uint)
+	var req struct { ID uint `json:"id"` }
+	json.NewDecoder(r.Body).Decode(&req)
+
+	err := database.RestoreFromTrash(req.ID, userID)
+	if err != nil { http.Error(w, err.Error(), 400); return }
+	
+	database.InvalidateCache(nil, userID)
+
+	json.NewEncoder(w).Encode(map[string]string{"status": "restored"})
+}
+
 func handleDelete(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "DELETE" {
 		http.Error(w, "DELETE only", 405)

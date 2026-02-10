@@ -36,6 +36,9 @@ type FileMetadata struct {
 	IsFolder bool   `gorm:"default:false" json:"is_folder"`
 	ParentID *uint  `gorm:"index" json:"parent_id"`
 	Depth    int    `json:"depth"`
+	
+	IsStarred bool `gorm:"default:false" json:"is_starred"`
+	IsTrash   bool `gorm:"default:false" json:"is_trash"`
 }
 
 var DB *gorm.DB

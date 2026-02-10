@@ -105,7 +105,8 @@ func GetFolderContent(parentID *uint, userID uint, role string) ([]FileMetadata,
 
 	// 3. DATABASE QUERY (Cache Miss)
 	var files []FileMetadata
-	query := DB.Where("status = ?", "completed")
+	//query := DB.Where("status = ?", "completed")
+	query := DB.Where("status = ?", "completed").Where("is_trash = ?", false)
 
 	// Parent Filter
 	if parentID == nil {
