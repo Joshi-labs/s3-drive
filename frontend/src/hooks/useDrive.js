@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const API_BASE = "http://localhost:8080"; //'https://s3-drive.vpjoshi.in'; 
+const API_BASE = "https://s3-drive.vpjoshi.in"; //'https://s3-drive.vpjoshi.in'; http://localhost:8080
 
 export const useDrive = () => {
     const navigate = useNavigate();
