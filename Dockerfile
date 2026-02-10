@@ -7,23 +7,28 @@ COPY frontend/ .
 RUN npm run build
 
 # Stage 2: Build Go Backend
-FROM golang:1.23-alpine AS backend-builder
+# Updated to match your exact version
+FROM golang:1.25.6-alpine AS backend-builder
 WORKDIR /app
+
+# Install git as a precaution for external modules
+RUN apk add --no-cache git
+
+# 1. Copy go.mod and go.sum
 COPY go.mod go.sum ./
+
+# 2. Copy the internal folder so local dependencies are available
+# before running 'go mod download'
+COPY internal/ ./internal/
+
+# 3. Download dependencies
 RUN go mod download
+
+# 4. Copy the rest of the source
 COPY . .
-# Bring in the dist folder for go:embed
+
+# 5. Bring in the built frontend from Stage 1
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-# Build as a static Linux binary (No .exe)
+# 6. Build the static Linux binary
 RUN CGO_ENABLED=0 GOOS=linux go build -o s3-drive main.go
-
-# Stage 3: Minimal Runtime
-FROM alpine:latest
-RUN apk --no-cache add ca-certificates
-WORKDIR /root/
-COPY --from=backend-builder /app/s3-drive .
-# If you use a .env file, you can copy it, 
-# but it's better to use K8s ConfigMaps/Secrets
-EXPOSE 8080
-CMD ["./s3-drive"]
