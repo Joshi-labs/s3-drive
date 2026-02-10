@@ -9,7 +9,7 @@ const LandingPage = () => (
     <main className="flex-grow flex items-center justify-center">
       <div className="text-center max-w-3xl px-6">
         <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 tracking-tight">
-          Easy and secure access to your content
+          Easy and secure access to your content .. fuck fuck fuck
         </h1>
         <p className="text-xl text-gray-600 mb-10">
           Store, share, and collaborate on files and folders from any mobile device, tablet, or computer.
