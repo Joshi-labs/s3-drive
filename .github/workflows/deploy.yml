@@ -16,17 +16,19 @@ jobs:
       packages: write
 
     env:
+      # We set this initially, but we will overwrite it with the lowercase version in the steps
+      IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/s3-drive:latest
       NAMESPACE: apps-prod
-      APP_NAME: s3-drive-app
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Prepare Image Tag
+      # We MUST keep this step because 'ghcr.io/Joshi-labs' (Capital J) causes the build to fail.
+      # This step forces it to lowercase 'ghcr.io/joshi-labs' just like your working stats-app.
+      - name: Lowercase Image Name
         run: |
-          IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/s3-drive:latest"
-          echo "IMAGE_TAG=$(echo $IMAGE_NAME | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+          echo "IMAGE=${IMAGE_NAME,,}" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -43,10 +45,9 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ env.IMAGE_TAG }}
+          tags: ${{ env.IMAGE }}
 
-      # --- START OF CD PART (K8S DEPLOYMENT) ---
-
+      # --- YOUR WORKING KUBECTL SETUP (Reverted to your 'curl' method) ---
       - name: Install kubectl
         run: |
           KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt)
@@ -55,10 +56,10 @@ jobs:
           sudo mv kubectl /usr/local/bin/kubectl
           kubectl version --client
 
+      # --- YOUR WORKING CONFIG SETUP (Using unquoted EOF for variable expansion) ---
       - name: Configure kubeconfig
         run: |
           mkdir -p ~/.kube
-          # Using <<EOF (without quotes) to allow expansion of the env variables below
           cat <<EOF > ~/.kube/config
           apiVersion: v1
           kind: Config
@@ -85,11 +86,11 @@ jobs:
 
       - name: Deploy to Kubernetes
         run: |
-          # Use the explicit kubeconfig path and turn off validation to be safe
+          # 1. Apply the deployment.yaml and service.yaml
           kubectl --kubeconfig ~/.kube/config apply -f k8s/ --validate=false
           
-          # Force a rollout restart to ensure the new :latest image is pulled
-          kubectl --kubeconfig ~/.kube/config rollout restart deployment ${{ env.APP_NAME }} -n ${{ env.NAMESPACE }}
+          # 2. Restart the specific deployment for S3-Drive
+          kubectl --kubeconfig ~/.kube/config rollout restart deployment s3-drive-app -n ${NAMESPACE}
           
-          # Monitor the rollout status
-          kubectl --kubeconfig ~/.kube/config rollout status deployment ${{ env.APP_NAME }} -n ${{ env.NAMESPACE }}
+          # 3. Wait for it to finish
+          kubectl --kubeconfig ~/.kube/config rollout status deployment s3-drive-app -n ${NAMESPACE}
