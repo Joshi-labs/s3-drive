@@ -141,7 +141,7 @@ mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- HANDLERS ---
-
+// so on
 // --- NEW FEATURE HANDLERS ---
 
 func handleSearch(w http.ResponseWriter, r *http.Request) {

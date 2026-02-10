@@ -32,3 +32,12 @@ COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 # 6. Build the static Linux binary
 RUN CGO_ENABLED=0 GOOS=linux go build -o s3-drive main.go
+
+# Stage 3: Create Minimal Runtime Image
+FROM gcr.io/distroless/base-debian12
+WORKDIR /app
+
+COPY --from=backend-builder /app/s3-drive /app/s3-drive
+
+EXPOSE 8080
+CMD ["/app/s3-drive"]
