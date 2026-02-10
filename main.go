@@ -101,7 +101,7 @@ func main() {
         log.Fatal("Failed to sub-tree frontendContent:", err)
     }
 
-mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
         // Allow API routes to be handled by their own handlers
         // (This check is a safety net, but usually mux handles this automatically)
         if strings.HasPrefix(r.URL.Path, "/api/") {
@@ -136,8 +136,8 @@ mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
         http.ServeContent(w, r, path, fi.ModTime(), f.(io.ReadSeeker))
     })
 
-	log.Println("Server running on 0.0.0.0:8080")
-	log.Fatal(http.ListenAndServe("0.0.0.0:8080", enableCORS(mux)))
+	log.Println("Server running on 0.0.0.0:80")
+	log.Fatal(http.ListenAndServe("0.0.0.0:80", enableCORS(mux)))
 }
 
 // --- HANDLERS ---

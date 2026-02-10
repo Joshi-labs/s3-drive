@@ -39,5 +39,5 @@ WORKDIR /app
 
 COPY --from=backend-builder /app/s3-drive /app/s3-drive
 
-EXPOSE 8080
+EXPOSE 80
 CMD ["/app/s3-drive"]
