@@ -44,3 +44,46 @@ jobs:
           context: .
           push: true
           tags: ${{ env.IMAGE_TAG }}
+
+      # --- START OF K8S DEPLOYMENT PART ---
+      
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          cat <<EOF > ~/.kube/config
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - name: k3s-homelab
+            cluster:
+              server: ${{ secrets.K8S_API_URL }}
+              insecure-skip-tls-verify: true
+          users:
+          - name: ci-user
+            user:
+              token: ${{ secrets.K8S_TOKEN }}
+          contexts:
+          - name: homelab-context
+            context:
+              cluster: k3s-homelab
+              user: ci-user
+              namespace: ${{ env.NAMESPACE }}
+          current-context: homelab-context
+          EOF
+
+      - name: Apply Manifests to Kubernetes
+        run: |
+          # Apply your deployment and service files from the k8s/ folder
+          kubectl apply -f k8s/
+          
+          # Force the deployment to use the new image we just pushed
+          # We use rollout restart because we are using the :latest tag
+          kubectl rollout restart deployment ${{ env.APP_NAME }} -n ${{ env.NAMESPACE }}
+          
+          # Wait for the rollout to finish
+          kubectl rollout status deployment ${{ env.APP_NAME }} -n ${{ env.NAMESPACE }}
