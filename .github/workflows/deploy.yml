@@ -45,45 +45,51 @@ jobs:
           push: true
           tags: ${{ env.IMAGE_TAG }}
 
-      # --- START OF K8S DEPLOYMENT PART ---
-      
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
-        with:
-          version: 'latest'
+      # --- START OF CD PART (K8S DEPLOYMENT) ---
+
+      - name: Install kubectl
+        run: |
+          KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt)
+          curl -L -o kubectl https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/kubectl
+          kubectl version --client
 
       - name: Configure kubeconfig
         run: |
           mkdir -p ~/.kube
+          # Using <<EOF (without quotes) to allow expansion of the env variables below
           cat <<EOF > ~/.kube/config
           apiVersion: v1
           kind: Config
           clusters:
-          - name: k3s-homelab
+          - name: k3s
             cluster:
-              server: ${{ secrets.K8S_API_URL }}
+              server: ${K8S_API_URL}
               insecure-skip-tls-verify: true
           users:
           - name: ci-user
             user:
-              token: ${{ secrets.K8S_TOKEN }}
+              token: ${K8S_TOKEN}
           contexts:
-          - name: homelab-context
+          - name: ci
             context:
-              cluster: k3s-homelab
+              cluster: k3s
               user: ci-user
-              namespace: ${{ env.NAMESPACE }}
-          current-context: homelab-context
+              namespace: ${NAMESPACE}
+          current-context: ci
           EOF
+        env:
+          K8S_API_URL: ${{ secrets.K8S_API_URL }}
+          K8S_TOKEN: ${{ secrets.K8S_TOKEN }}
 
-      - name: Apply Manifests to Kubernetes
+      - name: Deploy to Kubernetes
         run: |
-          # Apply your deployment and service files from the k8s/ folder
-          kubectl apply -f k8s/
+          # Use the explicit kubeconfig path and turn off validation to be safe
+          kubectl --kubeconfig ~/.kube/config apply -f k8s/ --validate=false
           
-          # Force the deployment to use the new image we just pushed
-          # We use rollout restart because we are using the :latest tag
-          kubectl rollout restart deployment ${{ env.APP_NAME }} -n ${{ env.NAMESPACE }}
+          # Force a rollout restart to ensure the new :latest image is pulled
+          kubectl --kubeconfig ~/.kube/config rollout restart deployment ${{ env.APP_NAME }} -n ${{ env.NAMESPACE }}
           
-          # Wait for the rollout to finish
-          kubectl rollout status deployment ${{ env.APP_NAME }} -n ${{ env.NAMESPACE }}
+          # Monitor the rollout status
+          kubectl --kubeconfig ~/.kube/config rollout status deployment ${{ env.APP_NAME }} -n ${{ env.NAMESPACE }}
