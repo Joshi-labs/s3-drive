@@ -28,7 +28,3 @@ clean:
 	@echo ">> Cleaning up..."
 	if exist $(BINARY_NAME) del $(BINARY_NAME)
 	if exist $(FRONTEND_DIR)\dist rmdir /s /q $(FRONTEND_DIR)\dist
-
-# 5. Run the compiled binary
-run:
-	./$(BINARY_NAME)

@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: s3-drive-app
+  namespace: apps-prod
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: s3-drive
+  template:
+    metadata:
+      labels:
+        app: s3-drive
+    spec:
+      containers:
+      - name: s3-drive
+        image: ghcr.io/YOUR_GITHUB_OWNER/s3-drive:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - secretRef:
+            name: s3-drive-secrets
