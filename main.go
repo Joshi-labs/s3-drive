@@ -73,6 +73,7 @@ func main() {
 	// --- PUBLIC AUTH ---
 	mux.HandleFunc("/api/login", handleLogin)             // For Admin
 	mux.HandleFunc("/api/guest-login", middleware.RateLimit(handleGuestLogin)) // For Guests
+	mux.HandleFunc("/api/admin/update-password", authMiddleware(handleUpdateAdminPassword))
 
 	// --- PROTECTED ROUTES (Middleware Required) ---
     mux.HandleFunc("/api/upload-init", middleware.RateLimit(authMiddleware(handleUploadInit)))
@@ -484,4 +485,59 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		ctx = context.WithValue(ctx, "role", role)
 		next(w, r.WithContext(ctx))
 	}
+}
+
+func handleUpdateAdminPassword(w http.ResponseWriter, r *http.Request) {
+    if r.Method != "POST" {
+        http.Error(w, "POST only", 405)
+        return
+    }
+
+    userID := r.Context().Value("userID").(uint)
+    role := r.Context().Value("role").(string)
+
+    // Only allow admins to use this specific route
+    if role != "admin" {
+        http.Error(w, "Unauthorized: Admin access required", 403)
+        return
+    }
+
+    var req struct {
+        OldPassword string `json:"oldPassword"`
+        NewPassword string `json:"newPassword"`
+    }
+
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, "Invalid JSON", 400)
+        return
+    }
+
+    // 1. Fetch the user from the DB
+    var user database.User
+    if err := database.DB.First(&user, userID).Error; err != nil {
+        http.Error(w, "User not found", 404)
+        return
+    }
+
+    // 2. Verify the OLD password
+    err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.OldPassword))
+    if err != nil {
+        http.Error(w, "Current password incorrect", 401)
+        return
+    }
+
+    // 3. Hash the NEW password
+    newHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), 14)
+    if err != nil {
+        http.Error(w, "Failed to process new password", 500)
+        return
+    }
+
+    // 4. Update in Database
+    if err := database.DB.Model(&user).Update("password", string(newHash)).Error; err != nil {
+        http.Error(w, "Database error", 500)
+        return
+    }
+
+    json.NewEncoder(w).Encode(map[string]string{"status": "password updated successfully"})
 }

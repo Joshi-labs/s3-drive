@@ -11,8 +11,8 @@ const LoginPage = () => {
     const API_BASE = "https://s3-drive.vpjoshi.in"; //'https://s3-drive.vpjoshi.in'; http://localhost:80
 
     const [formData, setFormData] = useState({
-        username: 'admin',
-        password: 'admin123'
+        username: '',
+        password: ''
     });
 
     const handleChange = (e) => {
