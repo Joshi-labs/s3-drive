@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/glebarez/sqlite" // <--- CHANGED: Pure Go Driver
+	"github.com/glebarez/sqlite"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -74,7 +74,7 @@ func Connect() {
 
 // StartCleanupTask runs forever in the background
 func StartCleanupTask() {
-    ticker := time.NewTicker(24 * time.Hour) // Run every 24 hours
+    ticker := time.NewTicker(24 * time.Hour)
     defer ticker.Stop()
 
     for {
