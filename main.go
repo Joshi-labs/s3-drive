@@ -31,24 +31,31 @@ var jwtSecret = []byte("REPLACE_THIS_WITH_RANDOM_STRING") // Use ENV in prod
 
 
 func enableCORS(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// 1. Allow your frontend origin
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		
-		// 2. Allow specific HTTP methods
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		
-		// 3. Allow headers (Content-Type for JSON, Authorization for tokens)
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+    
+    allowedOrigins := map[string]bool{
+        "https://vpjoshi.in":          true,
+        "https://s3-drive.vpjoshi.in": true,
+        "https://api.vpjoshi.in":      true,
+    }
 
-		// 4. Handle "Preflight" requests (Browser asks: "Can I send this?")
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        origin := r.Header.Get("Origin")
 
-		next.ServeHTTP(w, r)
-	})
+        if allowedOrigins[origin] {
+            w.Header().Set("Access-Control-Allow-Origin", origin)
+        }
+
+        w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+        w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+        // Handle Preflight
+        if r.Method == "OPTIONS" {
+            w.WriteHeader(http.StatusOK)
+            return
+        }
+
+        next.ServeHTTP(w, r)
+    })
 }
 
 func main() {
