@@ -79,14 +79,17 @@ func ToggleStar(id uint, userID uint) (bool, error) {
 		return false, err
 	}
 
-	// Security: Can only star your own files (or public ones?)
-	// Let's say Admin can star anything, others only their own.
 	if file.UserID != nil && *file.UserID != userID && userID != 1 {
 		return false, fmt.Errorf("permission denied")
 	}
 
 	newState := !file.IsStarred
 	err := DB.Model(&file).Update("is_starred", newState).Error
+	
+	if err == nil {
+		InvalidateCache(file.ParentID, userID)
+	}
+
 	return newState, err
 }
 

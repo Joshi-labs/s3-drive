@@ -42,7 +42,7 @@ const TrashView = () => {
     const files   = items.filter(i => !i.is_folder);
 
     return (
-        <div className="h-full overflow-y-auto" style={{ padding: '20px 16px 100px', backgroundColor: 'var(--bg-base)' }}>
+        <div className="h-full overflow-y-auto" style={{ padding: '20px 16px 100px', overflowX: 'hidden', backgroundColor: 'var(--bg-base)' }}>
             <style>{`@media(min-width:768px){.view-inner{padding-left:32px;padding-right:32px;}}`}</style>
 
             <DeleteConfirmModal

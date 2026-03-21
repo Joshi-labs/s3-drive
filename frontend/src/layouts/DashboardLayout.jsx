@@ -16,7 +16,7 @@ const DashboardLayout = () => {
     return (
         <div
             className="flex flex-col h-screen"
-            style={{ backgroundColor: 'var(--bg-base)' }}
+            style={{ backgroundColor: 'var(--bg-base)', overflow: 'hidden' }}
         >
             <DriveNavbar onMenuClick={() => setMobileMenuOpen(true)} />
 

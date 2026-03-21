@@ -39,7 +39,7 @@ const CreateFolderModal = ({ isOpen, onClose, onCreate }) => {
 
 // ─── Breadcrumbs ──────────────────────────────────────────────────────────────
 const Breadcrumbs = ({ breadcrumbs, onNavigate }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '20px', overflowX: 'auto', whiteSpace: 'nowrap', scrollbarWidth: 'none' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '20px', overflowX: 'auto', overflowY: 'hidden', whiteSpace: 'nowrap', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {breadcrumbs.map((crumb, index) => (
             <React.Fragment key={crumb.id ?? index}>
                 {index > 0 && <span style={{ color: 'var(--text-muted)', fontSize: '13px', flexShrink: 0 }}>/</span>}
@@ -118,7 +118,25 @@ const DriveView = () => {
 
     const refresh = async () => {
         const data = await listFiles(currentFolderId);
-        setItems(data.sort((a, b) => (a.is_folder === b.is_folder) ? 0 : a.is_folder ? -1 : 1));
+        const sorted = data.sort((a, b) => (a.is_folder === b.is_folder) ? 0 : a.is_folder ? -1 : 1);
+
+        // DEBUG: log what the API returns for is_starred
+        console.group('[DriveView] API response (root)');
+        sorted.forEach(item => {
+            console.log(
+                (item.is_folder ? '📁' : '📄') +
+                ' id=' + item.id +
+                '  is_starred=' + item.is_starred +
+                '  name="' + item.name + '"'
+            );
+        });
+        const starred = sorted.filter(i => i.is_starred);
+        console.log('Starred count: ' + starred.length);
+        starred.forEach(i => console.log('  STARRED -> id=' + i.id + ' name="' + i.name + '"'));
+        console.groupEnd();
+        // END DEBUG
+
+        setItems(sorted);
     };
     useEffect(() => { refresh(); }, [currentFolderId]);
 
@@ -158,6 +176,7 @@ const DriveView = () => {
             className="h-full overflow-y-auto"
             style={{
                 padding: '20px 16px 100px',
+                overflowX: 'hidden',
                 backgroundColor: isDragging ? 'var(--blue-subtle)' : 'var(--bg-base)',
                 outline: isDragging ? '2px dashed var(--blue)' : 'none',
                 outlineOffset: '-8px',
