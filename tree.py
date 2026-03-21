@@ -40,6 +40,7 @@ IGNORE_DIRS = {
     ".github",
     "k8s",
     "frontend-test",
+    "frontend",
     "copy"
 }
 # =================================================

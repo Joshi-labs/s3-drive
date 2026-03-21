@@ -1,139 +1,173 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDrive } from '../hooks/useDrive';
 import { FolderItem, FileItem } from '../components/DriveItems';
-import Icons from '../components/icons';
+
+const SearchIcon = ({ size = 5 }) => (
+    <svg className={`w-${size} h-${size}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+    </svg>
+);
+
+const Section = ({ title, count, children }) => (
+    <div className="mb-8 animate-fade-in">
+        <div className="flex items-center gap-2 mb-3 px-0.5">
+            <p className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>{title}</p>
+            <span
+                className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                style={{ backgroundColor: 'var(--bg-subtle)', color: 'var(--text-muted)' }}
+            >{count}</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">{children}</div>
+    </div>
+);
 
 const SearchView = () => {
     const navigate = useNavigate();
     const { loading, searchFiles, softDelete, toggleStar, downloadFile } = useDrive();
-    
-    // Local State for Search
-    const [searchTerm, setSearchTerm] = useState("");
+    const [searchTerm, setSearchTerm] = useState('');
     const [items, setItems] = useState([]);
-    const [hasSearched, setHasSearched] = useState(false); // To distinguish "fresh load" vs "no results"
+    const [hasSearched, setHasSearched] = useState(false);
+    const inputRef = useRef(null);
 
-    const handleSearch = async (e) => {
-        // Search on Enter key or if triggered manually
-        if ((e.key === 'Enter' || e.type === 'click') && searchTerm.trim()) {
-            try {
-                const data = await searchFiles(searchTerm);
-                setItems(data);
-                setHasSearched(true);
-            } catch(error) {
-                console.error(error);
-            }
-        }
+    const runSearch = async (term) => {
+        if (!term.trim()) return;
+        try {
+            const data = await searchFiles(term);
+            setItems(data);
+            setHasSearched(true);
+        } catch (e) { console.error(e); }
     };
 
-    // Actions (Instant Soft Delete)
+    const handleKeyDown = (e) => { if (e.key === 'Enter') runSearch(searchTerm); };
+
     const handleItemAction = async (action, item) => {
         if (action === 'delete') {
             await softDelete(item.id);
-            // Remove item locally to avoid re-fetching
             setItems(prev => prev.filter(i => i.id !== item.id));
-        } 
-        else if (action === 'star') {
+        } else if (action === 'star') {
             await toggleStar(item.id);
-        } 
-        else if (action === 'copy') {
+            setItems(prev => prev.map(i => i.id === item.id ? { ...i, is_starred: !i.is_starred } : i));
+        } else if (action === 'copy') {
             navigator.clipboard.writeText(`${window.location.origin}/drive/${item.id}`);
-            alert("Link copied!");
         }
     };
 
-    const handleFolderClick = (id, name) => {
-        navigate(`/drive/${id}`, { 
-            state: { 
-                folderName: name, 
-                // We point back to search, but note: results will reset on back button
-                source: { label: 'Search', path: '/drive/search' } 
-            } 
-        });
-    };
+    const handleFolderClick = (id, name) => navigate(`/drive/${id}`, {
+        state: { folderName: name, source: { label: 'Search', path: '/drive/search' } }
+    });
 
     const folders = items.filter(i => i.is_folder);
     const files = items.filter(i => !i.is_folder);
 
     return (
-        <div className="h-full overflow-y-auto p-4 pb-24 md:p-8 relative scroll-smooth">
-            
-            {/* --- NEW LOCAL SEARCH BAR --- */}
-            <div className="max-w-3xl mx-auto mb-8">
-                <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <Icons.Search className="w-5 h-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
-                    </div>
-                    <input 
-                        type="text" 
+        <div className="h-full overflow-y-auto p-5 md:p-8 pb-24" style={{ backgroundColor: 'var(--bg-base)' }}>
+
+            {/* Search bar */}
+            <div className="max-w-2xl mx-auto mb-8">
+                <div
+                    className="flex items-center gap-3 px-4 rounded-2xl transition-all"
+                    style={{
+                        backgroundColor: 'var(--bg-elevated)',
+                        border: '1px solid var(--border)',
+                        boxShadow: 'var(--shadow-sm)',
+                    }}
+                    onFocus={() => {}}
+                >
+                    <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
+                        <SearchIcon size={4} />
+                    </span>
+                    <input
+                        ref={inputRef}
+                        type="text"
                         value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        onKeyDown={handleSearch}
-                        placeholder="Search for files, folders..." 
-                        className="block w-full pl-12 pr-4 py-4 bg-gray-50 border-none text-gray-900 text-lg placeholder-gray-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:shadow-lg rounded-2xl transition-all" 
+                        onChange={e => setSearchTerm(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Search files and folders…"
                         autoFocus
+                        className="flex-1 py-3.5 text-sm bg-transparent border-none outline-none"
+                        style={{ color: 'var(--text-primary)' }}
                     />
-                    <button 
-                        onClick={handleSearch}
-                        className="absolute inset-y-2 right-2 px-4 bg-blue-600 text-white rounded-xl font-medium text-sm hover:bg-blue-700 transition-colors"
+                    {searchTerm && (
+                        <button
+                            onClick={() => { setSearchTerm(''); setItems([]); setHasSearched(false); inputRef.current?.focus(); }}
+                            className="p-1 rounded-lg transition-colors flex-shrink-0"
+                            style={{ color: 'var(--text-muted)' }}
+                            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-subtle)'}
+                            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    )}
+                    <button
+                        onClick={() => runSearch(searchTerm)}
+                        disabled={!searchTerm.trim() || loading}
+                        className="btn-primary px-4 py-1.5 text-xs flex-shrink-0"
+                        style={{ borderRadius: '10px' }}
                     >
                         Search
                     </button>
                 </div>
+                {hasSearched && !loading && (
+                    <p className="text-xs mt-2 px-1" style={{ color: 'var(--text-muted)' }}>
+                        {items.length === 0
+                            ? `No results for "${searchTerm}"`
+                            : `${items.length} result${items.length !== 1 ? 's' : ''} for "${searchTerm}"`
+                        }
+                    </p>
+                )}
             </div>
 
             {loading ? (
                 <div className="flex justify-center py-20">
-                    <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    <div className="w-7 h-7 rounded-full border-2 border-t-transparent" style={{ borderColor: 'var(--blue)', animation: 'spin 0.7s linear infinite' }} />
                 </div>
             ) : (
                 <>
-                    {/* Empty State (Before Search) */}
-                    {!hasSearched && items.length === 0 && (
-                        <div className="flex flex-col items-center justify-center py-20 text-gray-400 opacity-60">
-                            <Icons.Search className="w-16 h-16 mb-4 text-gray-300" />
-                            <p className="text-lg">Type above to find your files</p>
+                    {/* Pre-search state */}
+                    {!hasSearched && (
+                        <div className="flex flex-col items-center justify-center py-24">
+                            <div
+                                className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
+                                style={{ backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+                            >
+                                <SearchIcon size={7} />
+                            </div>
+                            <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Search your drive</p>
+                            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Type a name above and press Enter or click Search</p>
                         </div>
                     )}
 
-                    {/* No Results State */}
+                    {/* No results */}
                     {hasSearched && items.length === 0 && (
-                        <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-                            <p>No results found for "{searchTerm}"</p>
+                        <div className="flex flex-col items-center justify-center py-24">
+                            <div
+                                className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
+                                style={{ backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+                            >
+                                <SearchIcon size={7} />
+                            </div>
+                            <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>No results found</p>
+                            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Try a different search term</p>
                         </div>
                     )}
 
-                    {/* Results Grid */}
+                    {/* Results */}
                     {folders.length > 0 && (
-                        <div className="mb-8 animate-fade-in">
-                            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-1">Folders</h3>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
-                                {folders.map(f => (
-                                    <FolderItem 
-                                        key={f.id} 
-                                        folder={f} 
-                                        onClick={handleFolderClick} 
-                                        onAction={handleItemAction} 
-                                    />
-                                ))}
-                            </div>
-                        </div>
+                        <Section title="Folders" count={folders.length}>
+                            {folders.map(f => (
+                                <FolderItem key={f.id} folder={f} onClick={handleFolderClick} onAction={handleItemAction} />
+                            ))}
+                        </Section>
                     )}
-
                     {files.length > 0 && (
-                        <div className="animate-fade-in">
-                            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-1">Files</h3>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
-                                {files.map(f => (
-                                    <FileItem 
-                                        key={f.id} 
-                                        file={f} 
-                                        onDownload={downloadFile} 
-                                        onAction={handleItemAction} 
-                                    />
-                                ))}
-                            </div>
-                        </div>
+                        <Section title="Files" count={files.length}>
+                            {files.map(f => (
+                                <FileItem key={f.id} file={f} onDownload={downloadFile} onAction={handleItemAction} />
+                            ))}
+                        </Section>
                     )}
                 </>
             )}

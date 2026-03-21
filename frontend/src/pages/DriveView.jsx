@@ -2,25 +2,58 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useDrive } from '../hooks/useDrive';
 import { FolderItem, FileItem } from '../components/DriveItems';
-import Icons from '../components/icons';
 import FloatingAddButton from '../components/FloatingAddButton';
 
+// ─── Create Folder Modal ──────────────────────────────────────────────────────
 const CreateFolderModal = ({ isOpen, onClose, onCreate }) => {
-    const [folderName, setFolderName] = useState("");
+    const [folderName, setFolderName] = useState('');
     const inputRef = useRef(null);
-    useEffect(() => { if (isOpen) { setTimeout(() => inputRef.current?.focus(), 100); setFolderName(""); } }, [isOpen]);
-    const handleSubmit = (e) => { e.preventDefault(); if (folderName.trim()) { onCreate(folderName); onClose(); } };
+
+    useEffect(() => {
+        if (isOpen) {
+            setFolderName('');
+            setTimeout(() => inputRef.current?.focus(), 80);
+        }
+    }, [isOpen]);
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        if (folderName.trim()) { onCreate(folderName.trim()); onClose(); }
+    };
+
     if (!isOpen) return null;
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm transition-opacity" onClick={onClose}></div>
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100">
-                <h3 className="text-lg font-semibold text-gray-800 mb-2">New Folder</h3>
+        <div
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+            style={{ backgroundColor: 'rgb(0 0 0 / 0.6)', backdropFilter: 'blur(4px)' }}
+        >
+            <div
+                className="w-full max-w-sm rounded-2xl p-6 animate-fade-in-up"
+                style={{
+                    backgroundColor: 'var(--bg-elevated)',
+                    border: '1px solid var(--border)',
+                    boxShadow: 'var(--shadow-xl)',
+                }}
+            >
+                <h3 className="text-base font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>New Folder</h3>
                 <form onSubmit={handleSubmit}>
-                    <input ref={inputRef} type="text" value={folderName} onChange={(e) => setFolderName(e.target.value)} placeholder="Untitled folder" className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all mb-6 text-gray-700" />
-                    <div className="flex justify-end space-x-3">
-                        <button type="button" onClick={onClose} className="px-5 py-2.5 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
-                        <button type="submit" disabled={!folderName.trim()} className="px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-md">Create</button>
+                    <input
+                        ref={inputRef}
+                        type="text"
+                        value={folderName}
+                        onChange={e => setFolderName(e.target.value)}
+                        placeholder="Untitled folder"
+                        className="input-base mb-5"
+                    />
+                    <div className="flex justify-end gap-3">
+                        <button type="button" onClick={onClose} className="btn-ghost px-4">Cancel</button>
+                        <button
+                            type="submit"
+                            disabled={!folderName.trim()}
+                            className="btn-primary px-5"
+                        >
+                            Create
+                        </button>
                     </div>
                 </form>
             </div>
@@ -28,36 +61,124 @@ const CreateFolderModal = ({ isOpen, onClose, onCreate }) => {
     );
 };
 
+// ─── Breadcrumbs ──────────────────────────────────────────────────────────────
 const Breadcrumbs = ({ breadcrumbs, onNavigate }) => (
-    <div className="flex items-center text-sm sm:text-base text-gray-600 mb-6 overflow-x-auto whitespace-nowrap hide-scrollbar py-1">
+    <div className="flex items-center gap-1 mb-6 overflow-x-auto whitespace-nowrap hide-scrollbar py-0.5">
         {breadcrumbs.map((crumb, index) => (
-            <div key={crumb.id || index} className="flex items-center flex-shrink-0">
-                {index > 0 && <span className="mx-2 text-gray-300">/</span>}
-                <span onClick={() => onNavigate(crumb)} className={`hover:bg-gray-100 px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${index === breadcrumbs.length - 1 ? 'font-semibold text-gray-900 bg-gray-50' : 'text-gray-500 hover:text-blue-600'}`}>{crumb.name}</span>
-            </div>
+            <React.Fragment key={crumb.id || index}>
+                {index > 0 && (
+                    <span className="mx-1 text-xs" style={{ color: 'var(--text-muted)' }}>/</span>
+                )}
+                <button
+                    onClick={() => onNavigate(crumb)}
+                    className="px-2.5 py-1 rounded-lg text-sm transition-colors flex-shrink-0"
+                    style={{
+                        color: index === breadcrumbs.length - 1 ? 'var(--text-primary)' : 'var(--text-secondary)',
+                        fontWeight: index === breadcrumbs.length - 1 ? 600 : 400,
+                        backgroundColor: index === breadcrumbs.length - 1 ? 'var(--bg-subtle)' : 'transparent',
+                    }}
+                    onMouseEnter={e => { if (index < breadcrumbs.length - 1) { e.currentTarget.style.backgroundColor = 'var(--bg-subtle)'; e.currentTarget.style.color = 'var(--blue)'; } }}
+                    onMouseLeave={e => { if (index < breadcrumbs.length - 1) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; } }}
+                >
+                    {crumb.name}
+                </button>
+            </React.Fragment>
         ))}
     </div>
 );
 
+// ─── Upload Progress ──────────────────────────────────────────────────────────
+const UploadProgress = ({ status, progress }) => (
+    <div
+        className="fixed bottom-6 right-6 left-6 md:left-auto md:w-80 rounded-xl p-4 z-50 animate-fade-in-up"
+        style={{
+            backgroundColor: 'var(--bg-elevated)',
+            border: '1px solid var(--border)',
+            boxShadow: 'var(--shadow-xl)',
+        }}
+    >
+        <div className="flex justify-between items-center mb-2">
+            <span className="text-xs font-medium truncate pr-3" style={{ color: 'var(--text-secondary)' }}>{status}</span>
+            <span className="text-xs font-bold flex-shrink-0" style={{ color: 'var(--blue)' }}>{progress}%</span>
+        </div>
+        <div className="w-full rounded-full overflow-hidden" style={{ height: '3px', backgroundColor: 'var(--bg-muted)' }}>
+            <div
+                className="h-full rounded-full transition-all duration-300"
+                style={{ width: `${progress}%`, backgroundColor: 'var(--blue)' }}
+            />
+        </div>
+    </div>
+);
+
+// ─── Empty State ──────────────────────────────────────────────────────────────
+const EmptyState = ({ onUpload, onNewFolder }) => (
+    <div className="flex flex-col items-center justify-center py-20">
+        <div
+            className="w-20 h-20 rounded-2xl flex items-center justify-center mb-5"
+            style={{ backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)' }}
+        >
+            <svg viewBox="0 0 24 24" fill="var(--text-muted)" className="w-10 h-10">
+                <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+            </svg>
+        </div>
+        <p className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>This folder is empty</p>
+        <p className="text-xs mb-6" style={{ color: 'var(--text-muted)' }}>Upload files or create a new folder to get started</p>
+        <div className="flex gap-3">
+            <button onClick={onNewFolder} className="btn-ghost text-xs px-4 py-2" style={{ border: '1px solid var(--border)' }}>New Folder</button>
+            <button onClick={onUpload} className="btn-primary text-xs px-4 py-2">Upload File</button>
+        </div>
+    </div>
+);
+
+// ─── Section ──────────────────────────────────────────────────────────────────
+const Section = ({ title, children }) => (
+    <div className="mb-8 animate-fade-in">
+        <p className="text-[11px] font-semibold uppercase tracking-widest mb-3 px-0.5" style={{ color: 'var(--text-muted)' }}>
+            {title}
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+            {children}
+        </div>
+    </div>
+);
+
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+const SkeletonGrid = () => (
+    <div className="mb-8">
+        <div className="skeleton h-3 w-16 mb-4" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="skeleton rounded-2xl" style={{ aspectRatio: '1 / 1.1' }} />
+            ))}
+        </div>
+    </div>
+);
+
+// ─── DriveView ────────────────────────────────────────────────────────────────
 const DriveView = () => {
     const { folderId } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
     const currentFolderId = folderId === 'root' || !folderId ? null : parseInt(folderId);
 
-    const { 
-        loading, isUploading, uploadProgress, uploadStatus, 
-        listFiles, createFolder, softDelete, toggleStar, downloadFile, processBatchUpload 
+    const {
+        loading, isUploading, uploadProgress, uploadStatus,
+        listFiles, createFolder, softDelete, toggleStar, downloadFile, processBatchUpload
     } = useDrive();
 
     const [breadcrumbs, setBreadcrumbs] = useState(() => {
         if (location.state?.source && location.state?.folderName) {
-            return [{ id: 'source', name: location.state.source.label, path: location.state.source.path }, { id: currentFolderId, name: location.state.folderName }];
+            return [
+                { id: 'source', name: location.state.source.label, path: location.state.source.path },
+                { id: currentFolderId, name: location.state.folderName },
+            ];
         }
-        return [{ id: 'root', name: 'Home', path: '/drive/root' }];
+        return [{ id: 'root', name: 'My Drive', path: '/drive/root' }];
     });
 
-    useEffect(() => { if (!currentFolderId) setBreadcrumbs([{ id: 'root', name: 'Home', path: '/drive/root' }]); }, [currentFolderId]);
+    useEffect(() => {
+        if (!currentFolderId) setBreadcrumbs([{ id: 'root', name: 'My Drive', path: '/drive/root' }]);
+    }, [currentFolderId]);
 
     const [items, setItems] = useState([]);
     const [isDragging, setIsDragging] = useState(false);
@@ -68,51 +189,33 @@ const DriveView = () => {
         const data = await listFiles(currentFolderId);
         setItems(data.sort((a, b) => (a.is_folder === b.is_folder) ? 0 : a.is_folder ? -1 : 1));
     };
-
     useEffect(() => { refresh(); }, [currentFolderId]);
 
-    // --- OPTIMISTIC UI UPDATES (The Fix) ---
     const handleItemAction = async (action, item) => {
         if (action === 'delete') {
-            // 1. Optimistic: Remove from UI immediately
             setItems(prev => prev.filter(i => i.id !== item.id));
-            
-            // 2. Network request in background
             await softDelete(item.id);
-            refresh(); 
-            
+            refresh();
         } else if (action === 'star') {
-            // 1. Optimistic: Toggle star in UI immediately
-            setItems(prev => prev.map(i => 
-                i.id === item.id ? { ...i, is_starred: !i.is_starred } : i
-            ));
-
-            // 2. Network request in background
+            setItems(prev => prev.map(i => i.id === item.id ? { ...i, is_starred: !i.is_starred } : i));
             await toggleStar(item.id);
-            
         } else if (action === 'copy') {
-            const link = `${window.location.origin}/drive/${item.id}`; 
-            navigator.clipboard.writeText(link);
-            alert("Link copied!");
+            navigator.clipboard.writeText(`${window.location.origin}/drive/${item.id}`);
         }
     };
 
-    const handleFileUpload = (files) => processBatchUpload(files, currentFolderId, refresh);
-
     const handleFolderClick = (id, name) => {
-        const state = location.state?.source ? { source: location.state.source, folderName: name } : {};
         setBreadcrumbs(prev => [...prev, { id, name }]);
-        navigate(`/drive/${id}`, { state });
+        navigate(`/drive/${id}`);
     };
 
     const handleBreadcrumbClick = (crumb) => {
         if (crumb.path) {
             navigate(crumb.path);
         } else {
-            const index = breadcrumbs.findIndex(b => b.id === crumb.id);
-            const newCrumbs = breadcrumbs.slice(0, index + 1);
-            setBreadcrumbs(newCrumbs);
-            navigate(`/drive/${crumb.id}`, { state: location.state });
+            const idx = breadcrumbs.findIndex(b => b.id === crumb.id);
+            setBreadcrumbs(breadcrumbs.slice(0, idx + 1));
+            navigate(`/drive/${crumb.id}`);
         }
     };
 
@@ -120,33 +223,87 @@ const DriveView = () => {
     const files = items.filter(i => !i.is_folder);
 
     return (
-        <div 
-            className={`h-full overflow-y-auto p-4 pb-24 md:p-8 relative scroll-smooth transition-colors duration-200 ${isDragging ? 'bg-blue-50/50 ring-4 ring-inset ring-blue-400/30' : ''}`}
-            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-            onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
-            onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleFileUpload(Array.from(e.dataTransfer.files)); }}
+        <div
+            className={`h-full overflow-y-auto p-5 md:p-8 pb-24 relative transition-all duration-200`}
+            style={{
+                backgroundColor: isDragging ? 'var(--blue-subtle)' : 'var(--bg-base)',
+                outline: isDragging ? '2px dashed var(--blue)' : 'none',
+                outlineOffset: '-8px',
+            }}
+            onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={e => { e.preventDefault(); setIsDragging(false); }}
+            onDrop={e => {
+                e.preventDefault();
+                setIsDragging(false);
+                processBatchUpload(Array.from(e.dataTransfer.files), currentFolderId, refresh);
+            }}
         >
-            <input type="file" ref={fileInputRef} className="hidden" multiple onChange={(e) => handleFileUpload(Array.from(e.target.files))} />
-            <CreateFolderModal isOpen={isFolderModalOpen} onClose={() => setIsFolderModalOpen(false)} onCreate={(name) => { createFolder(name, currentFolderId).then(refresh); }} />
+            <input type="file" ref={fileInputRef} className="hidden" multiple onChange={e => processBatchUpload(Array.from(e.target.files), currentFolderId, refresh)} />
+            <CreateFolderModal isOpen={isFolderModalOpen} onClose={() => setIsFolderModalOpen(false)} onCreate={name => createFolder(name, currentFolderId).then(refresh)} />
 
-            {isDragging && <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none bg-blue-50/80 backdrop-blur-sm"><div className="text-center animate-bounce"><Icons.Folder className="w-20 h-20 text-blue-500 mx-auto mb-4" /><h3 className="text-2xl font-bold text-blue-600">Drop files to upload</h3></div></div>}
+            {/* Drag overlay */}
+            {isDragging && (
+                <div
+                    className="absolute inset-0 flex flex-col items-center justify-center z-50 pointer-events-none animate-fade-in"
+                    style={{ backgroundColor: 'rgb(59 130 246 / 0.08)' }}
+                >
+                    <div
+                        className="p-8 rounded-3xl text-center"
+                        style={{
+                            backgroundColor: 'var(--bg-elevated)',
+                            border: '2px dashed var(--blue)',
+                            boxShadow: 'var(--shadow-lg)',
+                        }}
+                    >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" strokeWidth="1.5" className="w-12 h-12 mx-auto mb-3">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                        </svg>
+                        <p className="text-base font-semibold" style={{ color: 'var(--blue)' }}>Drop to upload</p>
+                    </div>
+                </div>
+            )}
 
             <Breadcrumbs breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbClick} />
 
-            {loading ? <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div> : (
+            {loading ? (
                 <>
-                    {folders.length > 0 && (
-                        <div className="mb-8 animate-fade-in"><h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-1">Folders</h3><div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">{folders.map(f => <FolderItem key={f.id} folder={f} onClick={handleFolderClick} onAction={handleItemAction} />)}</div></div>
+                    <SkeletonGrid />
+                    <SkeletonGrid />
+                </>
+            ) : (
+                <>
+                    {folders.length === 0 && files.length === 0 ? (
+                        <EmptyState
+                            onUpload={() => fileInputRef.current?.click()}
+                            onNewFolder={() => setIsFolderModalOpen(true)}
+                        />
+                    ) : (
+                        <>
+                            {folders.length > 0 && (
+                                <Section title="Folders">
+                                    {folders.map(f => (
+                                        <FolderItem key={f.id} folder={f} onClick={handleFolderClick} onAction={handleItemAction} />
+                                    ))}
+                                </Section>
+                            )}
+                            {files.length > 0 && (
+                                <Section title="Files">
+                                    {files.map(f => (
+                                        <FileItem key={f.id} file={f} onDownload={downloadFile} onAction={handleItemAction} />
+                                    ))}
+                                </Section>
+                            )}
+                        </>
                     )}
-                    <div className="animate-fade-in"><h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-1">Files</h3>
-                        {files.length === 0 && folders.length === 0 ? <div className="flex flex-col items-center justify-center py-20 text-gray-400"><div className="bg-gray-50 p-8 rounded-full mb-4"><Icons.Folder className="w-16 h-16 text-gray-300"/></div><p>Empty Folder</p></div> : <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">{files.map(f => <FileItem key={f.id} file={f} onDownload={downloadFile} onAction={handleItemAction} />)}</div>}
-                    </div>
                 </>
             )}
 
-            <FloatingAddButton onNewFolder={() => setIsFolderModalOpen(true)} onUploadClick={() => fileInputRef.current?.click()} />
+            <FloatingAddButton
+                onNewFolder={() => setIsFolderModalOpen(true)}
+                onUploadClick={() => fileInputRef.current?.click()}
+            />
 
-            {isUploading && <div className="fixed bottom-6 right-6 left-6 md:left-auto md:w-96 bg-white rounded-xl shadow-2xl border border-gray-100 p-4 z-50"><div className="flex justify-between items-center mb-2"><span className="text-sm font-semibold text-gray-800 truncate pr-4">{uploadStatus}</span><span className="text-xs font-bold text-blue-600">{uploadProgress}%</span></div><div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden"><div className="bg-blue-600 h-2 rounded-full transition-all duration-300" style={{width: `${uploadProgress}%`}}></div></div></div>}
+            {isUploading && <UploadProgress status={uploadStatus} progress={uploadProgress} />}
         </div>
     );
 };
