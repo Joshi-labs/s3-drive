@@ -2,35 +2,29 @@
 
 /* ─── Design Tokens ─────────────────────────────────────────── */
 :root {
-    /* Surfaces */
     --bg-base:       #f8f9fb;
     --bg-elevated:   #ffffff;
     --bg-subtle:     #f1f4f8;
     --bg-muted:      #e8ecf2;
 
-    /* Borders */
     --border:        #e2e6ed;
     --border-subtle: #edf0f4;
 
-    /* Text */
     --text-primary:   #0f1117;
     --text-secondary: #5a6475;
     --text-muted:     #8c96a5;
 
-    /* Brand */
     --blue:          #3b82f6;
     --blue-hover:    #2563eb;
     --blue-subtle:   #eff6ff;
     --blue-muted:    #dbeafe;
     --blue-text:     #1d4ed8;
 
-    /* Status */
     --red:           #ef4444;
     --red-subtle:    #fef2f2;
     --yellow:        #f59e0b;
     --green:         #22c55e;
 
-    /* Shadows */
     --shadow-sm:  0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04);
     --shadow-md:  0 4px 12px 0 rgb(0 0 0 / 0.08), 0 2px 4px -1px rgb(0 0 0 / 0.04);
     --shadow-lg:  0 10px 30px 0 rgb(0 0 0 / 0.10), 0 4px 8px -2px rgb(0 0 0 / 0.06);
@@ -38,35 +32,29 @@
 }
 
 .dark {
-    /* Surfaces — slate-blue dark, NOT pure black */
     --bg-base:       #0d1117;
     --bg-elevated:   #161b24;
     --bg-subtle:     #1c2333;
     --bg-muted:      #242d3d;
 
-    /* Borders */
     --border:        #2a3448;
     --border-subtle: #1f2a3a;
 
-    /* Text */
     --text-primary:   #e8edf5;
     --text-secondary: #8b97ab;
     --text-muted:     #576070;
 
-    /* Brand */
     --blue:          #4d8ef5;
     --blue-hover:    #6ba3f7;
     --blue-subtle:   #0f1e35;
     --blue-muted:    #1a3050;
     --blue-text:     #7eb8f7;
 
-    /* Status */
     --red:           #f87171;
     --red-subtle:    #1f0e0e;
     --yellow:        #fbbf24;
     --green:         #4ade80;
 
-    /* Shadows — more prominent in dark */
     --shadow-sm:  0 1px 3px 0 rgb(0 0 0 / 0.3);
     --shadow-md:  0 4px 12px 0 rgb(0 0 0 / 0.4);
     --shadow-lg:  0 10px 30px 0 rgb(0 0 0 / 0.5);
@@ -74,7 +62,7 @@
 }
 
 /* ─── Base ───────────────────────────────────────────────────── */
-* { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: border-box; }
 
 body {
     background-color: var(--bg-base);
@@ -93,19 +81,32 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
-/* ─── Utility classes using CSS vars ─────────────────────────── */
-.bg-base      { background-color: var(--bg-base); }
-.bg-elevated  { background-color: var(--bg-elevated); }
-.bg-subtle    { background-color: var(--bg-subtle); }
-.bg-muted-ui  { background-color: var(--bg-muted); }
-.border-ui    { border-color: var(--border); }
-.text-primary { color: var(--text-primary); }
-.text-secondary { color: var(--text-secondary); }
-.text-muted-ui  { color: var(--text-muted); }
+/* ─── Responsive item grid ───────────────────────────────────── */
+/* 2 columns on mobile, scales up with viewport */
+.item-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(2, 1fr);
+}
+@media (min-width: 480px) {
+    .item-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (min-width: 640px) {
+    .item-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (min-width: 768px) {
+    .item-grid { grid-template-columns: repeat(4, 1fr); }
+}
+@media (min-width: 1024px) {
+    .item-grid { grid-template-columns: repeat(5, 1fr); }
+}
+@media (min-width: 1280px) {
+    .item-grid { grid-template-columns: repeat(6, 1fr); }
+}
 
 /* ─── Animations ─────────────────────────────────────────────── */
 @keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(10px); }
+    from { opacity: 0; transform: translateY(8px); }
     to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes fadeIn {
@@ -113,27 +114,12 @@ body {
     to   { opacity: 1; }
 }
 @keyframes spin {
-    to { transform: rotate(360deg); }
-}
-@keyframes shimmer {
-    0%   { background-position: -200% 0; }
-    100% { background-position:  200% 0; }
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
 }
 
-.animate-fade-in-up { animation: fadeInUp 0.25s ease both; }
-.animate-fade-in    { animation: fadeIn   0.2s  ease both; }
-
-/* Skeleton shimmer */
-.skeleton {
-    background: linear-gradient(90deg,
-        var(--bg-subtle) 25%,
-        var(--bg-muted) 50%,
-        var(--bg-subtle) 75%
-    );
-    background-size: 200% 100%;
-    animation: shimmer 1.4s infinite;
-    border-radius: 8px;
-}
+.animate-fade-in-up { animation: fadeInUp 0.2s ease both; }
+.animate-fade-in    { animation: fadeIn 0.15s ease both; }
 
 /* ─── Input base ─────────────────────────────────────────────── */
 .input-base {
@@ -146,14 +132,16 @@ body {
     font-size: 0.875rem;
     outline: none;
     transition: border-color 0.15s, box-shadow 0.15s;
+    font-family: inherit;
 }
 .input-base::placeholder { color: var(--text-muted); }
 .input-base:focus {
     border-color: var(--blue);
     box-shadow: 0 0 0 3px rgb(59 130 246 / 0.15);
+    background-color: var(--bg-elevated);
 }
 
-/* ─── Button variants ────────────────────────────────────────── */
+/* ─── Buttons ────────────────────────────────────────────────── */
 .btn-primary {
     display: inline-flex; align-items: center; justify-content: center;
     padding: 0.625rem 1.25rem;
@@ -164,6 +152,7 @@ body {
     border: none; cursor: pointer;
     transition: background-color 0.15s, transform 0.1s, box-shadow 0.15s;
     box-shadow: 0 2px 8px rgb(59 130 246 / 0.35);
+    font-family: inherit;
 }
 .btn-primary:hover:not(:disabled) {
     background-color: var(--blue-hover);
@@ -180,6 +169,7 @@ body {
     font-weight: 500; font-size: 0.875rem;
     border-radius: 10px; border: none; cursor: pointer;
     transition: background-color 0.15s, color 0.15s;
+    font-family: inherit;
 }
 .btn-ghost:hover { background-color: var(--bg-subtle); color: var(--text-primary); }
 
@@ -189,26 +179,6 @@ body {
     border: 1px solid var(--border);
     border-radius: 14px;
     box-shadow: var(--shadow-sm);
-}
-.card-hover {
-    transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
-}
-.card-hover:hover {
-    border-color: var(--blue);
-    box-shadow: var(--shadow-md);
-}
-.card-hover:active { transform: scale(0.985); }
-
-/* ─── Badge ──────────────────────────────────────────────────── */
-.badge {
-    display: inline-flex; align-items: center;
-    padding: 0.2rem 0.55rem;
-    border-radius: 6px;
-    font-size: 0.7rem; font-weight: 600; letter-spacing: 0.03em;
-}
-.badge-blue {
-    background-color: var(--blue-muted);
-    color: var(--blue-text);
 }
 
 /* ─── Divider ────────────────────────────────────────────────── */

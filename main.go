@@ -36,6 +36,7 @@ func enableCORS(next http.Handler) http.Handler {
         "https://vpjoshi.in":          true,
         "https://s3-drive.vpjoshi.in": true,
         "https://api.vpjoshi.in":      true,
+		"http://localhost:5173":       true, // For local development
     }
 
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

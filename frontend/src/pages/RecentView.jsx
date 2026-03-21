@@ -1,29 +1,13 @@
-// RecentView.jsx
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDrive } from '../hooks/useDrive';
 import { FolderItem, FileItem } from '../components/DriveItems';
+import { Spinner, Section, EmptyState } from '../components/ViewPrimitives';
 
 const ClockIcon = () => (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+    <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--text-muted)" strokeWidth="2">
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
     </svg>
-);
-
-const Section = ({ title, children }) => (
-    <div className="mb-8 animate-fade-in">
-        <p className="text-[11px] font-semibold uppercase tracking-widest mb-3 px-0.5" style={{ color: 'var(--text-muted)' }}>{title}</p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">{children}</div>
-    </div>
-);
-
-const Skeleton = () => (
-    <div className="mb-8">
-        <div className="skeleton h-3 w-16 mb-3" />
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-            {Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton rounded-2xl" style={{ aspectRatio: '1/1.1' }} />)}
-        </div>
-    </div>
 );
 
 const RecentView = () => {
@@ -40,34 +24,49 @@ const RecentView = () => {
         else if (action === 'copy') { navigator.clipboard.writeText(`${window.location.origin}/drive/${item.id}`); }
     };
 
-    const handleFolderClick = (id, name) => navigate(`/drive/${id}`, { state: { folderName: name, source: { label: 'Recent', path: '/drive/recent' } } });
+    const handleFolderClick = (id, name) => navigate(`/drive/${id}`, {
+        state: { folderName: name, source: { label: 'Recent', path: '/drive/recent' } }
+    });
+
     const folders = items.filter(i => i.is_folder);
-    const files = items.filter(i => !i.is_folder);
+    const files   = items.filter(i => !i.is_folder);
 
     return (
-        <div className="h-full overflow-y-auto p-5 md:p-8 pb-24" style={{ backgroundColor: 'var(--bg-base)' }}>
-            <div className="flex items-center gap-3 mb-6">
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'var(--blue-subtle)', color: 'var(--blue)' }}>
-                    <ClockIcon />
+        <div className="h-full overflow-y-auto" style={{ padding: '20px 16px 100px', backgroundColor: 'var(--bg-base)' }}>
+            <style>{`@media(min-width:768px){.view-inner{padding-left:32px;padding-right:32px;}}`}</style>
+            <div className="view-inner">
+                {/* Page header */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
+                    <div style={{ width: '34px', height: '34px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--blue-subtle)' }}>
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--blue)" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                    <h2 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Recent</h2>
                 </div>
-                <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>Recent</h2>
-            </div>
 
-            {loading ? <><Skeleton /><Skeleton /></> : (
-                <>
-                    {items.length === 0 && (
-                        <div className="flex flex-col items-center justify-center py-24">
-                            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4" style={{ backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
-                                <ClockIcon />
-                            </div>
-                            <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>No recent activity</p>
-                            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Files you open or upload will appear here</p>
-                        </div>
-                    )}
-                    {folders.length > 0 && <Section title="Folders">{folders.map(f => <FolderItem key={f.id} folder={f} onClick={handleFolderClick} onAction={handleItemAction} />)}</Section>}
-                    {files.length > 0 && <Section title="Files">{files.map(f => <FileItem key={f.id} file={f} onDownload={downloadFile} onAction={handleItemAction} />)}</Section>}
-                </>
-            )}
+                {loading ? <Spinner /> : (
+                    <>
+                        {items.length === 0 && (
+                            <EmptyState
+                                icon={<ClockIcon />}
+                                title="No recent activity"
+                                subtitle="Files you open or upload will appear here"
+                            />
+                        )}
+                        {folders.length > 0 && (
+                            <Section title="Folders" count={folders.length}>
+                                {folders.map(f => <FolderItem key={f.id} folder={f} onClick={handleFolderClick} onAction={handleItemAction} />)}
+                            </Section>
+                        )}
+                        {files.length > 0 && (
+                            <Section title="Files" count={files.length}>
+                                {files.map(f => <FileItem key={f.id} file={f} onDownload={downloadFile} onAction={handleItemAction} />)}
+                            </Section>
+                        )}
+                    </>
+                )}
+            </div>
         </div>
     );
 };
