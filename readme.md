@@ -33,10 +33,10 @@ No subscription. No per-seat pricing. No data leaving your control.
 
 ```
                                     ┌─────────────────────────────────────┐
-                                    │           GitHub Actions             │
-                                    │                                      │
+                                    │           GitHub Actions            │
+                                    │                                     │
                                     │  push to main → build → deploy      │
-                                    │  kubectl apply → k8s rolling update  │
+                                    │  kubectl apply → k8s rolling update │
                                     └──────────────┬──────────────────────┘
                                                    │
                                                    ▼
@@ -57,27 +57,27 @@ No subscription. No per-seat pricing. No data leaving your control.
                               │  ┌──────────────────────────────────────┐  │
                               │  │         Go Binary (single pod)       │  │
                               │  │                                      │  │
-                              │  │  ┌─────────┐  ┌──────────────────┐  │  │
-                              │  │  │  Auth   │  │   File Handlers  │  │  │
-                              │  │  │  JWT    │  │  Upload / List   │  │  │
-                              │  │  └─────────┘  │  Download / Star │  │  │
-                              │  │               │  Search / Trash  │  │  │
-                              │  │               └──────────────────┘  │  │
+                              │  │  ┌─────────┐  ┌──────────────────┐   │  │
+                              │  │  │  Auth   │  │   File Handlers  │   │  │
+                              │  │  │  JWT    │  │  Upload / List   │   │  │
+                              │  │  └─────────┘  │  Download / Star │   │  │
+                              │  │               │  Search / Trash  │   │  │
+                              │  │               └──────────────────┘   │  │
                               │  │                                      │  │
-                              │  │  ┌─────────┐  ┌──────────────────┐  │  │
-                              │  │  │ SQLite  │  │   In-Memory      │  │  │
-                              │  │  │  / DB   │  │   Cache Layer    │  │  │
-                              │  │  └─────────┘  └──────────────────┘  │  │
+                              │  │  ┌─────────┐  ┌──────────────────┐   │  │
+                              │  │  │ SQLite  │  │   In-Memory      │   │  │
+                              │  │  │  / DB   │  │   Cache Layer    │   │  │
+                              │  │  └─────────┘  └──────────────────┘   │  │
                               │  └──────────────────────────────────────┘  │
                               │                                            │
                               └────────────────────────────────────────────┘
-                                               │
-                              ┌────────────────┼────────────────┐
-                              ▼                ▼                ▼
-                    ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-                    │   AWS S3     │  │  Cloudflare  │  │   MinIO      │
-                    │              │  │     R2       │  │ (self-hosted)│
-                    └──────────────┘  └──────────────┘  └──────────────┘
+                                                 │
+                                ┌────────────────┼────────────────┐
+                                ▼                ▼                ▼
+                        ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+                        │   AWS S3     │  │  Cloudflare  │  │   MinIO      │
+                        │              │  │     R2       │  │ (self-hosted)│
+                        └──────────────┘  └──────────────┘  └──────────────┘
 ```
 
 ---
@@ -190,7 +190,7 @@ docker run -d \
   --name s3drive \
   -p 80:80 \
   --env-file .env \
-  ghcr.io/yourusername/s3drive:latest
+  ghcr.io/joshi-labs/s3drive:latest
 ```
 
 ### Run locally

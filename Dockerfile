@@ -7,7 +7,6 @@ COPY frontend/ .
 RUN npm run build
 
 # Stage 2: Build Go Backend
-# Updated to match your exact version
 FROM golang:1.25.6-alpine AS backend-builder
 WORKDIR /app
 

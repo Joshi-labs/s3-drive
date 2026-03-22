@@ -17,7 +17,6 @@ import (
 	"github.com/joho/godotenv"
 	"golang.org/x/crypto/bcrypt"
 
-	// IMPORT YOUR LOCAL PACKAGES
 	"s3-drive/internal/database"
 	"s3-drive/internal/storage"
 	"s3-drive/internal/middleware"
