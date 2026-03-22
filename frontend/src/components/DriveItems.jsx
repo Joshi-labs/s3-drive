@@ -269,6 +269,7 @@ export const FolderItem = ({ folder, onClick, onAction, viewMode }) => {
         <div
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
+            onMouseMove={() => { if (!hovered) setHovered(true); }}
             style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -329,6 +330,7 @@ export const FileItem = ({ file, onDownload, onAction, viewMode }) => {
         <div
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
+            onMouseMove={() => { if (!hovered) setHovered(true); }}
             style={{
                 display: 'flex',
                 flexDirection: 'column',

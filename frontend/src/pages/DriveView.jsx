@@ -88,6 +88,75 @@ const FolderIcon = () => (
     </svg>
 );
 
+// ─── Performance Notice Modal ─────────────────────────────────────────────────
+const PerfModal = ({ onClose }) => (
+    <div
+        style={{
+            position: 'fixed', inset: 0, zIndex: 200,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '16px',
+            backgroundColor: 'rgb(0 0 0 / 0.55)',
+            backdropFilter: 'blur(4px)',
+        }}
+    >
+        <div
+            className="animate-fade-in-up"
+            style={{
+                width: '100%', maxWidth: '380px',
+                borderRadius: '18px',
+                backgroundColor: 'var(--bg-elevated)',
+                border: '1px solid var(--border)',
+                boxShadow: 'var(--shadow-xl)',
+                padding: '20px',
+            }}
+        >
+            {/* Title */}
+            <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 10px', textAlign: 'center' }}>
+                Performance notice
+            </p>
+
+            {/* Body */}
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.7', margin: '0 0 14px', textAlign: 'center' }}>
+                This app runs on a self-hosted Kubernetes cluster on a home server.
+                Expect occasional slowness or cold starts.
+            </p>
+
+            {/* Links */}
+            <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', marginBottom: '18px' }}>
+                <a
+                    href="https://docs.vpjoshi.in/#/server"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: '13px', color: 'var(--blue)', textDecoration: 'none', fontWeight: 500 }}
+                    onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+                    onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+                >
+                    Server docs ↗
+                </a>
+                <a
+                    href="https://vpjoshi.in"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: '13px', color: 'var(--blue)', textDecoration: 'none', fontWeight: 500 }}
+                    onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+                    onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+                >
+                    Portfolio ↗
+                </a>
+            </div>
+
+            {/* Close button */}
+            <button
+                onClick={onClose}
+                className="btn-ghost"
+                style={{ width: '100%', fontSize: '13px', padding: '9px', border: '1px solid var(--border)', borderRadius: '10px' }}
+            >
+                Close
+            </button>
+        </div>
+    </div>
+);
+
 // ─── DriveView ────────────────────────────────────────────────────────────────
 const DriveView = () => {
     const { folderId } = useParams();
@@ -114,31 +183,25 @@ const DriveView = () => {
     const [items, setItems] = useState([]);
     const [isDragging, setIsDragging] = useState(false);
     const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
+    const [showPerfModal, setShowPerfModal] = useState(() => {
+        // Show once per session
+        return !sessionStorage.getItem('perf-notice-seen');
+    });
     const fileInputRef = useRef(null);
 
-    const refresh = async () => {
+    const [localLoading, setLocalLoading] = useState(true);
+
+    const refresh = async (clearFirst = false) => {
+        if (clearFirst) {
+            setItems([]);
+            setLocalLoading(true);
+        }
         const data = await listFiles(currentFolderId);
         const sorted = data.sort((a, b) => (a.is_folder === b.is_folder) ? 0 : a.is_folder ? -1 : 1);
-
-        // DEBUG: log what the API returns for is_starred
-        console.group('[DriveView] API response (root)');
-        sorted.forEach(item => {
-            console.log(
-                (item.is_folder ? '📁' : '📄') +
-                ' id=' + item.id +
-                '  is_starred=' + item.is_starred +
-                '  name="' + item.name + '"'
-            );
-        });
-        const starred = sorted.filter(i => i.is_starred);
-        console.log('Starred count: ' + starred.length);
-        starred.forEach(i => console.log('  STARRED -> id=' + i.id + ' name="' + i.name + '"'));
-        console.groupEnd();
-        // END DEBUG
-
         setItems(sorted);
+        setLocalLoading(false);
     };
-    useEffect(() => { refresh(); }, [currentFolderId]);
+    useEffect(() => { refresh(true); }, [currentFolderId]);
 
     const handleItemAction = async (action, item) => {
         if (action === 'delete') {
@@ -154,6 +217,8 @@ const DriveView = () => {
     };
 
     const handleFolderClick = (id, name) => {
+        setItems([]);
+        setLocalLoading(true);
         setBreadcrumbs(prev => [...prev, { id, name }]);
         navigate(`/drive/${id}`);
     };
@@ -197,6 +262,12 @@ const DriveView = () => {
                 onChange={e => processBatchUpload(Array.from(e.target.files), currentFolderId, refresh)} />
             <CreateFolderModal isOpen={isFolderModalOpen} onClose={() => setIsFolderModalOpen(false)}
                 onCreate={name => createFolder(name, currentFolderId).then(refresh)} />
+            {showPerfModal && (
+                <PerfModal onClose={() => {
+                    sessionStorage.setItem('perf-notice-seen', '1');
+                    setShowPerfModal(false);
+                }} />
+            )}
 
             {/* Drag overlay */}
             {isDragging && (
@@ -214,7 +285,7 @@ const DriveView = () => {
             <div className="drive-inner">
                 <Breadcrumbs breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbClick} />
 
-                {loading ? <Spinner /> : (
+                {localLoading ? <Spinner /> : (
                     folders.length === 0 && files.length === 0 ? (
                         <EmptyState
                             icon={<FolderIcon />}
